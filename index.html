@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Reflection Tree</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@300;400&display=swap');
+
+  :root {
+    --bg: #0d0f0e;
+    --surface: #141614;
+    --border: #252825;
+    --text-primary: #e8ebe6;
+    --text-secondary: #7a8078;
+    --text-muted: #3d4039;
+    --accent: #8fb87a;
+    --accent-soft: rgba(143,184,122,0.12);
+    --accent-border: rgba(143,184,122,0.3);
+    --axis1: #7ab8a8;
+    --axis2: #b8a87a;
+    --axis3: #a87ab8;
+    --radius: 10px;
+    --transition: 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'EB Garamond', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.75;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 1rem 4rem;
+  }
+
+  /* Background texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: 
+      radial-gradient(ellipse 80% 60% at 20% 20%, rgba(143,184,122,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 80% 80%, rgba(122,184,168,0.04) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    width: 100%;
+    max-width: 680px;
+    padding: 2.5rem 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    z-index: 1;
+  }
+
+  .logo {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .session-time {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 300;
+    color: var(--text-muted);
+  }
+
+  /* Progress bar */
+  .progress-track {
+    width: 100%;
+    max-width: 680px;
+    margin-bottom: 3rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .progress-axes {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .axis-pill {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background var(--transition);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .axis-pill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.6s ease;
+  }
+
+  .axis-pill[data-axis="1"]::after { background: var(--axis1); }
+  .axis-pill[data-axis="2"]::after { background: var(--axis2); }
+  .axis-pill[data-axis="3"]::after { background: var(--axis3); }
+  .axis-pill[data-active="true"]::after { width: 50%; }
+  .axis-pill[data-done="true"]::after { width: 100%; }
+
+  .progress-labels {
+    display: flex;
+    gap: 6px;
+  }
+
+  .axis-label {
+    flex: 1;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    text-align: center;
+    transition: color var(--transition);
+  }
+
+  .axis-label[data-active="true"] { color: var(--text-secondary); }
+  .axis-label[data-done="true"] { color: var(--text-secondary); }
+
+  /* Main card */
+  main {
+    width: 100%;
+    max-width: 680px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 3rem 3rem 2.5rem;
+    animation: cardIn 0.5s cubic-bezier(0.4,0,0.2,1) both;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent-border), transparent);
+    opacity: 0;
+    transition: opacity var(--transition);
+  }
+
+  .card[data-type="reflection"]::before,
+  .card[data-type="summary"]::before { opacity: 1; }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .node-type-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .node-type-badge::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .node-text {
+    font-size: 1.25rem;
+    line-height: 1.7;
+    color: var(--text-primary);
+    margin-bottom: 2rem;
+    white-space: pre-wrap;
+  }
+
+  .node-text em { font-style: italic; color: var(--text-secondary); }
+
+  /* Start/Bridge/Reflection text styling */
+  .card[data-type="start"] .node-text,
+  .card[data-type="bridge"] .node-text {
+    font-style: italic;
+    color: var(--text-secondary);
+    font-size: 1.15rem;
+  }
+
+  .card[data-type="reflection"] .node-text {
+    font-size: 1.2rem;
+    line-height: 1.8;
+  }
+
+  /* Options */
+  .options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 0.5rem;
+  }
+
+  .option-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    text-align: left;
+    font-family: 'EB Garamond', Georgia, serif;
+    font-size: 1rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    line-height: 1.5;
+  }
+
+  .option-btn:hover {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--text-primary);
+  }
+
+  .option-btn:hover .option-letter {
+    color: var(--accent);
+  }
+
+  .option-letter {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+    flex-shrink: 0;
+    width: 14px;
+    transition: color var(--transition);
+  }
+
+  .option-btn.selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--text-primary);
+  }
+
+  .option-btn.selected .option-letter {
+    color: var(--accent);
+  }
+
+  /* Continue button */
+  .continue-btn {
+    margin-top: 1.5rem;
+    background: transparent;
+    border: 1px solid var(--accent-border);
+    border-radius: 8px;
+    padding: 0.85rem 2rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    cursor: pointer;
+    transition: all var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .continue-btn:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+
+  .continue-btn .arrow {
+    transition: transform var(--transition);
+  }
+
+  .continue-btn:hover .arrow {
+    transform: translateX(4px);
+  }
+
+  /* Summary card */
+  .summary-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .summary-axis {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .summary-axis:last-child { border-bottom: none; }
+
+  .summary-axis-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    width: 80px;
+    flex-shrink: 0;
+  }
+
+  .summary-axis[data-axis="1"] .summary-axis-label { color: var(--axis1); }
+  .summary-axis[data-axis="2"] .summary-axis-label { color: var(--axis2); }
+  .summary-axis[data-axis="3"] .summary-axis-label { color: var(--axis3); }
+
+  .summary-axis-value {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  .summary-insight {
+    margin-top: 1.5rem;
+    padding: 1.25rem 1.5rem;
+    background: rgba(143,184,122,0.06);
+    border-left: 2px solid var(--accent-border);
+    border-radius: 0 6px 6px 0;
+    font-size: 1rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    font-style: italic;
+  }
+
+  /* End screen */
+  .end-screen {
+    text-align: center;
+    padding: 2rem 0 1rem;
+  }
+
+  .end-screen .goodbye {
+    font-size: 1.5rem;
+    font-style: italic;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+  }
+
+  .end-screen .date-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .restart-btn {
+    margin-top: 2.5rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1.5rem;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .restart-btn:hover {
+    color: var(--text-secondary);
+    border-color: var(--text-muted);
+  }
+
+  /* Floating path trace */
+  .path-trace {
+    width: 100%;
+    max-width: 680px;
+    margin-top: 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .path-trace-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .path-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .path-step {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 7px;
+    opacity: 0;
+    animation: stepIn 0.3s ease both;
+  }
+
+  @keyframes stepIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @media (max-width: 600px) {
+    .card { padding: 2rem 1.5rem; }
+    .node-text { font-size: 1.1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">Daily Reflection</span>
+  <span class="session-time" id="sessionTime"></span>
+</header>
+
+<div class="progress-track">
+  <div class="progress-axes">
+    <div class="axis-pill" data-axis="1" id="prog1"></div>
+    <div class="axis-pill" data-axis="2" id="prog2"></div>
+    <div class="axis-pill" data-axis="3" id="prog3"></div>
+  </div>
+  <div class="progress-labels">
+    <div class="axis-label" data-axis="1" id="label1">Locus</div>
+    <div class="axis-label" data-axis="2" id="label2">Orientation</div>
+    <div class="axis-label" data-axis="3" id="label3">Radius</div>
+  </div>
+</div>
+
+<main id="mainCard"></main>
+
+<div class="path-trace" id="pathTrace">
+  <div class="path-trace-label">Path trace</div>
+  <div class="path-steps" id="pathSteps"></div>
+</div>
+
+<script>
+// ============================================================
+// TREE DATA (loaded from JSON structure)
+// ============================================================
+const TREE_DATA = {
+  "meta": {
+    "version": "1.0",
+    "title": "Daily Reflection Tree",
+    "axes": ["locus", "orientation", "radius"]
+  },
+  "nodes": [
+    { "id": "START", "parentId": null, "type": "start", "text": "Good evening.\n\nBefore the day slips away — let's spend a few minutes with it.\n\nNo right answers. No scores. Just honest questions.", "options": [], "target": "A1_OPEN", "signal": null },
+    { "id": "A1_OPEN", "parentId": "START", "type": "question", "text": "If you had to give today a single word, what would it be?", "options": ["Productive", "Draining", "Mixed", "Frustrating"], "target": null, "signal": null },
+    { "id": "A1_D1", "parentId": "A1_OPEN", "type": "decision", "text": null, "options": ["answer=Productive|Mixed:A1_Q1_HIGH","answer=Draining|Frustrating:A1_Q1_LOW"], "target": null, "signal": null },
+    { "id": "A1_Q1_HIGH", "parentId": "A1_D1", "type": "question", "text": "You said \"{A1_OPEN.answer}\" — something moved today.\n\nWhen a good moment happened, what made it possible?", "options": ["I prepared or planned for it","I made a quick call in the moment","The right people showed up","Honestly, I got a bit lucky"], "target": null, "signal": null },
+    { "id": "A1_Q1_LOW", "parentId": "A1_D1", "type": "question", "text": "You said \"{A1_OPEN.answer}\" — that sounds heavy.\n\nWhen things went sideways, what was your first move?", "options": ["I looked for something I could control","I vented — then tried to problem-solve","I waited to see if it would sort itself out","I felt stuck and stayed there for a while"], "target": null, "signal": null },
+    { "id": "A1_D2_HIGH", "parentId": "A1_Q1_HIGH", "type": "decision", "text": null, "options": ["answer=I prepared or planned for it|I made a quick call in the moment:A1_REF_INT","answer=The right people showed up|Honestly, I got a bit lucky:A1_REF_MIXED"], "target": null, "signal": null },
+    { "id": "A1_D2_LOW", "parentId": "A1_Q1_LOW", "type": "decision", "text": null, "options": ["answer=I looked for something I could control|I vented — then tried to problem-solve:A1_REF_MIXED","answer=I waited to see if it would sort itself out|I felt stuck and stayed there for a while:A1_REF_EXT"], "target": null, "signal": null },
+    { "id": "A1_REF_INT", "parentId": null, "type": "reflection", "text": "You stayed in the driver's seat today — even when the road got rough.\n\nThat's not naivety. It's a choice to look for leverage where you actually have it.\n\nAgency doesn't mean controlling outcomes. It means deciding how you respond.", "options": [], "target": "BRIDGE_1_2", "signal": "axis1:internal" },
+    { "id": "A1_REF_MIXED", "parentId": null, "type": "reflection", "text": "Today sounds like it pulled you in different directions. Some moments you were steering, others you were just holding on.\n\nThat tension — between responding and reacting — is where most of us actually live.\n\nNoticing it is the first step.", "options": [], "target": "BRIDGE_1_2", "signal": "axis1:mixed" },
+    { "id": "A1_REF_EXT", "parentId": null, "type": "reflection", "text": "Hard days pull attention outward — to what others did, what circumstances conspired, what didn't go to plan.\n\nThat's honest.\n\nBut somewhere in today, you made at least one call — even if it was just deciding to keep going. What was it?", "options": [], "target": "BRIDGE_1_2", "signal": "axis1:external" },
+    { "id": "BRIDGE_1_2", "parentId": null, "type": "bridge", "text": "Now let's shift from how you handled things — to what you gave.", "options": [], "target": "A2_OPEN", "signal": null },
+    { "id": "A2_OPEN", "parentId": "BRIDGE_1_2", "type": "question", "text": "Think of the most memorable interaction you had today.\n\nWhat was your primary feeling going into it?", "options": ["I wanted to help or add value","I wanted to be heard or recognized","I just needed to get through it","I wasn't sure what I was there to do"], "target": null, "signal": null },
+    { "id": "A2_D1", "parentId": "A2_OPEN", "type": "decision", "text": null, "options": ["answer=I wanted to help or add value:A2_Q1_CONTRIB","answer=I wanted to be heard or recognized:A2_Q1_ENTITLE","answer=I just needed to get through it|I wasn't sure what I was there to do:A2_Q1_NEUTRAL"], "target": null, "signal": null },
+    { "id": "A2_Q1_CONTRIB", "parentId": "A2_D1", "type": "question", "text": "Good instinct. Did you actually follow through on it — or did something get in the way?", "options": ["Yes, I helped in the way I intended","I tried, but I'm not sure it landed","I helped in a different way than I expected","Something got in the way"], "target": null, "signal": "axis2:contribution" },
+    { "id": "A2_Q1_ENTITLE", "parentId": "A2_D1", "type": "question", "text": "Did you get what you were hoping for from that interaction?", "options": ["Yes — they acknowledged my work","Not really — I felt overlooked","I realized mid-way I didn't actually need that","It shifted — I ended up focusing on them instead"], "target": null, "signal": "axis2:entitlement" },
+    { "id": "A2_Q1_NEUTRAL", "parentId": "A2_D1", "type": "question", "text": "Even in moments like that — something gets done, or something gets given.\n\nLooking back, what actually happened in that interaction?", "options": ["I ended up helping more than I expected","I mostly received — support, information, energy","It was purely transactional","Nothing meaningful changed for either of us"], "target": null, "signal": null },
+    { "id": "A2_D2", "parentId": "A2_Q1_NEUTRAL", "type": "decision", "text": null, "options": ["answer=I ended up helping more than I expected:A2_Q2_CONTRIB","answer=I mostly received — support, information, energy|It was purely transactional|Nothing meaningful changed for either of us:A2_Q2_ENTITLE"], "target": null, "signal": null },
+    { "id": "A2_Q2_CONTRIB", "parentId": null, "type": "question", "text": "Was there a moment today you did something that wasn't strictly your job — but you did it anyway?", "options": ["Yes, I helped a colleague who was struggling","Yes, I pointed something out that no one asked me to","Not really — I stuck to what was on my plate","I wanted to, but I was too stretched"], "target": null, "signal": null },
+    { "id": "A2_D3", "parentId": "A2_Q2_CONTRIB", "type": "decision", "text": null, "options": ["answer=Yes, I helped a colleague who was struggling|Yes, I pointed something out that no one asked me to:A2_REF_CONTRIB","answer=Not really — I stuck to what was on my plate|I wanted to, but I was too stretched:A2_REF_MIXED"], "target": null, "signal": null },
+    { "id": "A2_Q2_ENTITLE", "parentId": null, "type": "question", "text": "Honest question: at the end of today, did you feel the world owed you something — or that you owed the world something?", "options": ["Honestly, I felt a bit owed","Neither — I felt pretty even","I felt I still had things to give","I hadn't thought about it that way"], "target": null, "signal": null },
+    { "id": "A2_D4", "parentId": "A2_Q2_ENTITLE", "type": "decision", "text": null, "options": ["answer=Honestly, I felt a bit owed:A2_REF_ENTITLE","answer=Neither — I felt pretty even|I hadn't thought about it that way:A2_REF_MIXED","answer=I felt I still had things to give:A2_REF_CONTRIB"], "target": null, "signal": null },
+    { "id": "A2_D5", "parentId": "A2_Q1_CONTRIB", "type": "decision", "text": null, "options": ["answer=Yes, I helped in the way I intended|I helped in a different way than I expected:A2_REF_CONTRIB","answer=I tried, but I'm not sure it landed|Something got in the way:A2_REF_MIXED"], "target": null, "signal": null },
+    { "id": "A2_D6", "parentId": "A2_Q1_ENTITLE", "type": "decision", "text": null, "options": ["answer=Yes — they acknowledged my work|Not really — I felt overlooked:A2_Q2_ENTITLE","answer=I realized mid-way I didn't actually need that|It shifted — I ended up focusing on them instead:A2_REF_CONTRIB"], "target": null, "signal": null },
+    { "id": "A2_REF_CONTRIB", "parentId": null, "type": "reflection", "text": "You showed up for someone else today — or for something bigger than just your own agenda.\n\nThat's not small. Contribution doesn't have to be dramatic. Sometimes it's just paying attention to what's needed, and meeting it.", "options": [], "target": "BRIDGE_2_3", "signal": "axis2:contribution" },
+    { "id": "A2_REF_MIXED", "parentId": null, "type": "reflection", "text": "Today you were probably both — giving in some moments, receiving in others. Most days are like that.\n\nThe question worth sitting with: where were you most alive in those interactions — when you were getting, or when you were giving?", "options": [], "target": "BRIDGE_2_3", "signal": "axis2:mixed" },
+    { "id": "A2_REF_ENTITLE", "parentId": null, "type": "reflection", "text": "Feeling owed is a signal worth examining — not to judge yourself, but to understand it.\n\nIt usually means something you expected didn't arrive. What was it you were actually hoping for today?", "options": [], "target": "BRIDGE_2_3", "signal": "axis2:entitlement" },
+    { "id": "BRIDGE_2_3", "parentId": null, "type": "bridge", "text": "One more turn. Let's zoom out — from you and your interactions, to the wider world those interactions touched.", "options": [], "target": "A3_OPEN", "signal": null },
+    { "id": "A3_OPEN", "parentId": "BRIDGE_2_3", "type": "question", "text": "When you think about today's biggest challenge — who came to mind while you were in it?", "options": ["Mostly just me — it was my problem","My immediate team","A specific person who was affected more than me","The customer or end user who'd eventually feel the impact"], "target": null, "signal": null },
+    { "id": "A3_D1", "parentId": "A3_OPEN", "type": "decision", "text": null, "options": ["answer=Mostly just me — it was my problem:A3_Q1_SELF","answer=My immediate team:A3_Q1_TEAM","answer=A specific person who was affected more than me|The customer or end user who'd eventually feel the impact:A3_Q1_OTHER"], "target": null, "signal": null },
+    { "id": "A3_Q1_SELF", "parentId": "A3_D1", "type": "question", "text": "That's fair — some problems are yours to carry.\n\nBut did anyone else's situation cross your mind at any point today? Even briefly?", "options": ["Yes — a colleague seemed to be struggling","Yes — I thought about how my work affects others downstream","Not really — I was heads-down in my own world","I was too overwhelmed to look up"], "target": null, "signal": null },
+    { "id": "A3_D2", "parentId": "A3_Q1_SELF", "type": "decision", "text": null, "options": ["answer=Yes — a colleague seemed to be struggling|Yes — I thought about how my work affects others downstream:A3_REF_MID","answer=Not really — I was heads-down in my own world|I was too overwhelmed to look up:A3_REF_SELF"], "target": null, "signal": null },
+    { "id": "A3_Q1_TEAM", "parentId": "A3_D1", "type": "question", "text": "You kept the team in view — that matters.\n\nWas there a specific person on the team whose experience you were tracking?", "options": ["Yes — I noticed someone struggling and checked in","Yes — I adjusted what I was doing because of them","Not specifically — I just had the team in the background","I thought about the team but didn't act on it"], "target": null, "signal": null },
+    { "id": "A3_D3", "parentId": "A3_Q1_TEAM", "type": "decision", "text": null, "options": ["answer=Yes — I noticed someone struggling and checked in|Yes — I adjusted what I was doing because of them:A3_REF_ALTO","answer=Not specifically — I just had the team in the background|I thought about the team but didn't act on it:A3_REF_MID"], "target": null, "signal": null },
+    { "id": "A3_Q1_OTHER", "parentId": "A3_D1", "type": "question", "text": "You were holding someone else's experience while navigating your own — that takes a kind of dual awareness.\n\nDid it change how you acted?", "options": ["Yes — I made a decision differently because of it","Yes — I reached out or offered help","I noticed, but it didn't change anything I did","It actually made my own problem feel smaller"], "target": null, "signal": null },
+    { "id": "A3_D4", "parentId": "A3_Q1_OTHER", "type": "decision", "text": null, "options": ["answer=Yes — I made a decision differently because of it|Yes — I reached out or offered help|It actually made my own problem feel smaller:A3_REF_ALTO","answer=I noticed, but it didn't change anything I did:A3_REF_MID"], "target": null, "signal": null },
+    { "id": "A3_REF_ALTO", "parentId": null, "type": "reflection", "text": "You held more than just yourself in mind today.\n\nThat widened perspective — seeing the team, the colleague, the end user — is what separates someone who works in isolation from someone who works in contribution.\n\nThat radius of concern is one of the quietest forms of leadership.", "options": [], "target": "SUMMARY", "signal": "axis3:altrocentric" },
+    { "id": "A3_REF_MID", "parentId": null, "type": "reflection", "text": "You caught a glimpse of a wider frame today — even if you couldn't always act on it.\n\nThat awareness is not nothing. The gap between noticing and acting closes with time.\n\nToday you noticed. That's the start.", "options": [], "target": "SUMMARY", "signal": "axis3:mixed" },
+    { "id": "A3_REF_SELF", "parentId": null, "type": "reflection", "text": "Some days you need all of yourself just to get through your own day.\n\nThere's no shame in that — endurance is also a form of contribution.\n\nBut the deepest satisfaction we find is in service to something beyond ourselves. Tomorrow is another chance to look up.", "options": [], "target": "SUMMARY", "signal": "axis3:self" },
+    { "id": "SUMMARY", "parentId": null, "type": "summary", "text": "Today you showed up as \"{A1_OPEN.answer}\" — and somewhere in that, you navigated choices, interactions, and moments of connection.\n\n{summary_reflection}", "options": [], "target": "END", "signal": null },
+    { "id": "END", "parentId": "SUMMARY", "type": "end", "text": "See you tomorrow.", "options": [], "target": null, "signal": null }
+  ],
+  "summary_reflections": {
+    "internal_contribution_altrocentric": "You moved through today with agency, gave more than you took, and kept others in your field of view. That's a rare combination — and it compounds.",
+    "internal_contribution_mixed": "You drove your own day and showed up for others. The wider circle is already in your awareness — it'll widen further.",
+    "internal_contribution_self": "You stayed in control of your own story today. The next growth edge is letting others into that story.",
+    "internal_mixed_altrocentric": "You were in the driver's seat and you kept others in view. The contribution piece is where tomorrow can deepen.",
+    "internal_mixed_mixed": "A well-rounded day — agency, some giving, some wider awareness. That's honest and real.",
+    "internal_mixed_self": "You controlled what you could, but today was mostly about your own lane. That's okay — just notice it.",
+    "internal_entitlement_altrocentric": "You were proactive and outward-looking, even if the contribution piece felt a little uneasy today. That tension is productive.",
+    "internal_entitlement_mixed": "You had agency today. The invitation is to direct some of that energy outward, toward what others need.",
+    "internal_entitlement_self": "Strong sense of agency — that's real. The next step is pairing it with generosity, rather than expectation.",
+    "external_contribution_altrocentric": "Even when you felt the current was working against you, you kept giving and kept others in mind. That's real strength.",
+    "external_contribution_mixed": "You gave today even when you felt little control. That generosity under pressure is worth acknowledging.",
+    "external_contribution_self": "You contributed where you could, even if agency felt out of reach. That still counts.",
+    "external_mixed_altrocentric": "The day may have felt out of your hands, but your awareness extended beyond yourself. That matters.",
+    "external_mixed_mixed": "A tough day on all fronts. Go easy on yourself — and come back tomorrow.",
+    "external_mixed_self": "Hard day. You stayed in it. Tomorrow, look for one thing — just one — you can control.",
+    "external_entitlement_altrocentric": "The outer world felt like it was working against you, and you wanted more back. Fair. But you still kept others in view.",
+    "external_entitlement_mixed": "A tough day can make anyone feel owed something. Notice where the tide turns.",
+    "external_entitlement_self": "Rough day. It happens. The question for tomorrow: what's the one thing within reach?"
+  }
+};
+
+// ============================================================
+// AGENT ENGINE
+// ============================================================
+
+class ReflectionAgent {
+  constructor(treeData) {
+    this.tree = treeData;
+    this.nodeMap = {};
+    this.tree.nodes.forEach(n => this.nodeMap[n.id] = n);
+
+    this.state = {
+      answers: {},        // nodeId -> selected answer string
+      signals: [],        // list of signal strings collected
+      axis1: { internal: 0, external: 0, mixed: 0 },
+      axis2: { contribution: 0, entitlement: 0, mixed: 0 },
+      axis3: { altrocentric: 0, mixed: 0, self: 0 },
+      currentAxis: 0,     // 0=none, 1=locus, 2=orientation, 3=radius
+      path: []            // nodeIds visited
+    };
+
+    this.currentNodeId = 'START';
+  }
+
+  getNode(id) {
+    return this.nodeMap[id] || null;
+  }
+
+  interpolate(text) {
+    if (!text) return text;
+    return text.replace(/\{([^}]+)\}/g, (match, key) => {
+      if (key.endsWith('.answer')) {
+        const nodeId = key.replace('.answer', '');
+        return this.state.answers[nodeId] || match;
+      }
+      if (key === 'summary_reflection') {
+        return this.getSummaryReflection();
+      }
+      if (key === 'axis1.dominant') return this.getDominant('axis1');
+      if (key === 'axis2.dominant') return this.getDominant('axis2');
+      if (key === 'axis3.dominant') return this.getDominant('axis3');
+      return match;
+    });
+  }
+
+  getDominant(axis) {
+    const a = this.state[axis];
+    const max = Math.max(...Object.values(a));
+    const keys = Object.keys(a).filter(k => a[k] === max);
+    return keys[0] || 'mixed';
+  }
+
+  getSummaryReflection() {
+    const a1 = this.getDominant('axis1');
+    const a2 = this.getDominant('axis2');
+    const a3 = this.getDominant('axis3');
+    const key = `${a1}_${a2}_${a3}`;
+    return this.tree.summary_reflections[key] || "Today was a day. Tomorrow is another chance.";
+  }
+
+  applySignal(signal) {
+    if (!signal) return;
+    this.state.signals.push(signal);
+    const [axis, value] = signal.split(':');
+    if (this.state[axis] && this.state[axis][value] !== undefined) {
+      this.state[axis][value]++;
+    }
+  }
+
+  resolveDecision(node) {
+    for (const rule of node.options) {
+      const parts = rule.split(':');
+      if (parts.length < 2) continue;
+      const condition = parts[0];
+      const target = parts[1];
+
+      if (condition.startsWith('answer=')) {
+        const rawValues = condition.replace('answer=', '');
+        const values = rawValues.split('|');
+
+        // Find the parent question of this decision node
+        const parentId = node.parentId;
+        const parentAnswer = this.state.answers[parentId];
+
+        if (parentAnswer && values.some(v => parentAnswer === v)) {
+          return target;
+        }
+
+        // Also check if any ancestor answers match
+        for (const [nodeId, answer] of Object.entries(this.state.answers)) {
+          if (values.some(v => answer === v)) {
+            return target;
+          }
+        }
+      }
+    }
+    // Fallback: return first target
+    if (node.options.length > 0) {
+      return node.options[0].split(':')[1];
+    }
+    return null;
+  }
+
+  advance(selectedOption) {
+    const node = this.getNode(this.currentNodeId);
+    if (!node) return null;
+
+    // Record answer if question node
+    if (node.type === 'question' && selectedOption) {
+      this.state.answers[node.id] = selectedOption;
+    }
+
+    // Apply signal
+    this.applySignal(node.signal);
+
+    // Track path
+    this.state.path.push(node.id);
+
+    // Determine next node
+    let nextId = null;
+
+    if (node.target) {
+      nextId = node.target;
+    } else {
+      // Find children
+      const children = this.tree.nodes.filter(n => n.parentId === node.id);
+      if (children.length === 1) {
+        nextId = children[0].id;
+      } else if (children.length > 1) {
+        nextId = children[0].id; // Will be resolved if it's a decision
+      }
+    }
+
+    if (!nextId) return null;
+
+    // Auto-resolve decision nodes
+    let nextNode = this.getNode(nextId);
+    while (nextNode && nextNode.type === 'decision') {
+      this.state.path.push(nextNode.id);
+      const resolved = this.resolveDecision(nextNode);
+      if (!resolved) break;
+      nextId = resolved;
+      nextNode = this.getNode(nextId);
+    }
+
+    // Update current axis tracking
+    if (nextId && nextId.startsWith('A1')) this.state.currentAxis = 1;
+    else if (nextId && nextId.startsWith('A2')) this.state.currentAxis = 2;
+    else if (nextId && nextId.startsWith('A3')) this.state.currentAxis = 3;
+    else if (nextId === 'BRIDGE_1_2') this.state.currentAxis = 1;
+    else if (nextId === 'BRIDGE_2_3') this.state.currentAxis = 2;
+    else if (nextId === 'SUMMARY' || nextId === 'END') this.state.currentAxis = 3;
+
+    this.currentNodeId = nextId;
+    return this.getNode(nextId);
+  }
+}
+
+// ============================================================
+// UI RENDERER
+// ============================================================
+
+let agent = new ReflectionAgent(TREE_DATA);
+let sessionStart = new Date();
+
+function updateTime() {
+  const now = new Date();
+  document.getElementById('sessionTime').textContent = now.toLocaleTimeString('en-US', {
+    hour: '2-digit', minute: '2-digit', hour12: true
+  });
+}
+setInterval(updateTime, 60000);
+updateTime();
+
+function updateProgress(axis) {
+  for (let i = 1; i <= 3; i++) {
+    const pill = document.getElementById('prog' + i);
+    const label = document.querySelector('.axis-label[data-axis="' + i + '"]');
+    pill.removeAttribute('data-active');
+    pill.removeAttribute('data-done');
+    label.removeAttribute('data-active');
+    label.removeAttribute('data-done');
+  }
+  if (axis > 0) {
+    for (let i = 1; i < axis; i++) {
+      document.getElementById('prog' + i).dataset.done = 'true';
+      document.querySelector('.axis-label[data-axis="' + i + '"]').dataset.done = 'true';
+    }
+    if (axis <= 3) {
+      document.getElementById('prog' + axis).dataset.active = 'true';
+      document.querySelector('.axis-label[data-axis="' + axis + '"]').dataset.active = 'true';
+    }
+  }
+}
+
+function addPathStep(nodeId) {
+  const container = document.getElementById('pathSteps');
+  const step = document.createElement('div');
+  step.className = 'path-step';
+  step.textContent = nodeId;
+  step.style.animationDelay = '0ms';
+  container.appendChild(step);
+}
+
+function renderNode(node) {
+  if (!node) return;
+
+  const main = document.getElementById('mainCard');
+
+  const typeLabels = {
+    start: 'Evening Reflection',
+    question: 'Reflection',
+    reflection: 'Insight',
+    bridge: 'Transition',
+    summary: 'Your Day',
+    end: 'Session Complete'
+  };
+
+  const axisNum = agent.state.currentAxis;
+  updateProgress(axisNum);
+
+  if (node.type === 'start') {
+    main.innerHTML = `
+      <div class="card" data-type="start">
+        <div class="node-type-badge">${typeLabels[node.type] || node.type}</div>
+        <div class="node-text">${agent.interpolate(node.text).replace(/\n/g, '<br>')}</div>
+        <button class="continue-btn" onclick="handleContinue()">
+          Begin <span class="arrow">→</span>
+        </button>
+      </div>
+    `;
+  } else if (node.type === 'question') {
+    const letters = ['A', 'B', 'C', 'D', 'E'];
+    const optionsHTML = node.options.map((opt, i) => `
+      <button class="option-btn" onclick="handleSelect(this, '${opt.replace(/'/g, "\\'")}')" data-value="${opt.replace(/"/g, '&quot;')}">
+        <span class="option-letter">${letters[i]}</span>
+        <span>${opt}</span>
+      </button>
+    `).join('');
+
+    main.innerHTML = `
+      <div class="card" data-type="question">
+        <div class="node-type-badge">${typeLabels[node.type] || node.type}</div>
+        <div class="node-text">${agent.interpolate(node.text).replace(/\n/g, '<br>')}</div>
+        <div class="options-list">${optionsHTML}</div>
+      </div>
+    `;
+  } else if (node.type === 'reflection') {
+    main.innerHTML = `
+      <div class="card" data-type="reflection">
+        <div class="node-type-badge">${typeLabels[node.type] || node.type}</div>
+        <div class="node-text">${agent.interpolate(node.text).replace(/\n/g, '<br>')}</div>
+        <button class="continue-btn" onclick="handleContinue()">
+          Continue <span class="arrow">→</span>
+        </button>
+      </div>
+    `;
+  } else if (node.type === 'bridge') {
+    main.innerHTML = `
+      <div class="card" data-type="bridge">
+        <div class="node-type-badge">${typeLabels[node.type] || node.type}</div>
+        <div class="node-text">${agent.interpolate(node.text).replace(/\n/g, '<br>')}</div>
+        <button class="continue-btn" onclick="handleContinue()">
+          Continue <span class="arrow">→</span>
+        </button>
+      </div>
+    `;
+  } else if (node.type === 'summary') {
+    const a1 = agent.getDominant('axis1');
+    const a2 = agent.getDominant('axis2');
+    const a3 = agent.getDominant('axis3');
+
+    const a1Labels = { internal: 'toward agency', external: 'toward external factors', mixed: 'between agency and circumstance' };
+    const a2Labels = { contribution: 'toward contribution', entitlement: 'toward expectation', mixed: 'between giving and receiving' };
+    const a3Labels = { altrocentric: 'toward others', self: 'toward yourself', mixed: 'between self and others' };
+
+    const summaryText = agent.getSummaryReflection();
+    const word = agent.state.answers['A1_OPEN'] || 'today';
+
+    main.innerHTML = `
+      <div class="card" data-type="summary">
+        <div class="node-type-badge">${typeLabels[node.type] || node.type}</div>
+        <div class="node-text">Today you showed up as <em>"${word}"</em> — and somewhere in that, you navigated choices, interactions, and moments of connection.</div>
+        
+        <div class="summary-section">
+          <div class="summary-axis" data-axis="1">
+            <span class="summary-axis-label">Locus</span>
+            <span class="summary-axis-value">${a1Labels[a1] || a1}</span>
+          </div>
+          <div class="summary-axis" data-axis="2">
+            <span class="summary-axis-label">Orientation</span>
+            <span class="summary-axis-value">${a2Labels[a2] || a2}</span>
+          </div>
+          <div class="summary-axis" data-axis="3">
+            <span class="summary-axis-label">Radius</span>
+            <span class="summary-axis-value">${a3Labels[a3] || a3}</span>
+          </div>
+        </div>
+        
+        <div class="summary-insight">${summaryText}</div>
+        
+        <button class="continue-btn" style="margin-top:2rem" onclick="handleContinue()">
+          Close <span class="arrow">→</span>
+        </button>
+      </div>
+    `;
+
+    // Mark all axes done
+    for (let i = 1; i <= 3; i++) {
+      document.getElementById('prog' + i).dataset.done = 'true';
+      document.getElementById('prog' + i).removeAttribute('data-active');
+      document.querySelector('.axis-label[data-axis="' + i + '"]').dataset.done = 'true';
+      document.querySelector('.axis-label[data-axis="' + i + '"]').removeAttribute('data-active');
+    }
+
+  } else if (node.type === 'end') {
+    const now = new Date();
+    main.innerHTML = `
+      <div class="card" data-type="end">
+        <div class="end-screen">
+          <div class="goodbye">See you tomorrow.</div>
+          <div class="date-label">${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+          <button class="restart-btn" onclick="restartSession()">Start a new session</button>
+        </div>
+      </div>
+    `;
+  }
+
+  addPathStep(node.id);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function handleSelect(btn, value) {
+  // Clear selected state
+  document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+
+  // Auto-advance after brief pause
+  setTimeout(() => {
+    const next = agent.advance(value);
+    if (next) renderNode(next);
+  }, 380);
+}
+
+function handleContinue() {
+  const next = agent.advance(null);
+  if (next) renderNode(next);
+}
+
+function restartSession() {
+  agent = new ReflectionAgent(TREE_DATA);
+  document.getElementById('pathSteps').innerHTML = '';
+  updateProgress(0);
+  const startNode = agent.getNode('START');
+  renderNode(startNode);
+}
+
+// Init
+const startNode = agent.getNode('START');
+renderNode(startNode);
+</script>
+</body>
+</html>
